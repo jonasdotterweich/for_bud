@@ -1,0 +1,224 @@
+
+## modeling for Cerambyx cerdo
+
+
+
+library(flexsdm)
+require(dplyr)
+library(raster)
+library(terra)
+library(reshape2)
+
+
+#loading model dataframe
+
+df_CC <- read.csv("Data/df_CC+bivars.csv")
+
+
+#splitting the data frame into training and testing set
+#indexes of the data.frame (80% of it)
+ind <- sample(1:nrow(df_CC), 0.8*nrow(df_CC))
+
+train <- df_CC[ind,]
+
+test <- df_CC[-ind,]
+
+write.csv(train, "Models/training_CC.csv")
+
+write.csv(test, "Models/testing_CC.csv")
+
+
+#### now models with the training set:
+
+#creating the partition, which can be used to train a series of models
+
+part_train <- part_random(
+  data = train,
+  pr_ab = "pr_ab",
+  method = c(method = "rep_kfold", folds = 5, replicates = 10))
+
+
+names(df_CC)
+
+RAF_CC_fit1 <- fit_raf(part_train,
+                    response = "pr_ab",
+                    predictors = c("BIO3" ,                       "BIO4",                        "BIO15",                      
+                                   "BIO19",                       "ER_aridityIndexThornthwaite", "ER_growingDegDays5",         
+                                   "ER_monthCountByTemp10",         "ER_PETColdestQuarter",  "ER_PETDriestQuarter",      
+                                   "ER_PETWettestQuarter", "ER_tri"),
+                    partition = ".part",
+                    thr = c("max_sens_spec")
+)
+
+
+perf_result_raf <- RAF_CC_fit1$performance
+
+
+### random forest
+
+tune_grid_raf <-
+  expand.grid(mtry = seq(1, 7, 1))
+
+rf_tune <-
+  tune_raf(
+    data = part_train,
+    response = "pr_ab",
+    predictors = c("BIO3" ,                       "BIO4",                        "BIO15",                      
+                   "BIO19",                       "ER_aridityIndexThornthwaite", "ER_growingDegDays5",         
+                   "ER_monthCountByTemp10",         "ER_PETColdestQuarter",  "ER_PETDriestQuarter",      
+                   "ER_PETWettestQuarter", "ER_tri"),
+    partition = ".part",
+    grid = tune_grid_raf,
+    thr = "max_sens_spec",
+    metric = "TSS",
+    n_cores = 1
+  )
+
+
+hyper_rftune <- rf_tune$hyper_performance
+
+
+
+hyper_rftune[which(hyper_rftune$TSS_mean == max(hyper_rftune$TSS_mean)),]
+
+#
+
+RAF_CC_fit2 <- fit_raf(part_train,
+                    response = "pr_ab",
+                    predictors = c("BIO3" ,                       "BIO4",                        "BIO15",                      
+                                   "BIO19",                       "ER_aridityIndexThornthwaite", "ER_growingDegDays5",         
+                                   "ER_monthCountByTemp10",         "ER_PETColdestQuarter",  "ER_PETDriestQuarter",      
+                                   "ER_PETWettestQuarter", "ER_tri"),
+                    partition = ".part",
+                    thr = c("max_sens_spec"),
+                    mtry = 7
+)
+
+
+perf_res_rf2 <- RAF_CC_fit2$performance
+
+perf_res_rf2$TSS_mean
+perf_result_raf$TSS_mean
+
+
+### saving random forest model for Cerambyx cerdo
+
+write.csv(perf_res_rf2, "Models/perf_res_CC.csv")
+
+save(RAF_CC_fit2, file = "Models/CC_rfmodel.Rda")
+
+
+
+
+
+#now predicion 
+
+## needing biovariables
+
+bivar_curr <- brick("biovars_curr.tif")
+
+namesbivar <- brick("biovars_curr_names.grd")
+
+names(bivar_curr) <- names(namesbivar)
+
+
+bivars_curr <- rast(bivar_curr)
+
+
+## needing study area
+
+studar <- read_sf("study_areaQuercus.shp")
+
+studar <- as_Spatial(studar)
+
+
+# predicting current CC
+
+currCC <- sdm_predict(
+  models = RAF_CC_fit2,
+  pred = bivars_curr,
+  thr = "max_sens_spec",
+  con_thr = FALSE,
+  predict_area = studar,
+  clamp = TRUE,
+  pred_type = "cloglog"
+)
+
+currCCraf <- currCC$raf
+
+plot(currCCraf)
+
+
+
+##predicting future CC 
+
+bivar_fut <- brick("biovars_fut.tif")
+
+namesbivar <- brick("biovars_fut_names.grd")
+
+names(bivar_fut) <- names(namesbivar)
+
+
+bivars_fut <- rast(bivars_fut)
+
+
+
+futCC <- sdm_predict(
+  models = RAF_CC_fit2,
+  pred = bivars_fut,
+  thr = "max_sens_spec",
+  con_thr = FALSE,
+  predict_area = studar,
+  clamp = TRUE,
+  pred_type = "cloglog"
+)
+
+futCCraf <- futCC$raf
+
+plot(futCCraf)
+
+
+
+plot(currCCraf$raf)
+plot(futCCraf$raf)
+
+class(futCCraf)
+
+## saving predictions as tif
+
+curr_pred <- currCCraf$raf
+fut_pred <- futCCraf$raf
+
+writeRaster(curr_pred, "pred/curr_pred.tif", gdal=c("COMPRESS=DEFLATE", "TFW=YES"), overwrite=T)
+
+writeRaster(fut_pred, "pred/fut_pred.tif", gdal=c("COMPRESS=DEFLATE", "TFW=YES"), overwrite=T)
+
+
+
+##### creating a nicer map now 
+
+
+library(ggplot2)
+library(ggmap)
+
+
+ext(studar)
+
+
+
+#Get the base map
+
+base_map <- get_stadiamap(bbox = c(left = 5.11906466498299, 
+                                   bottom = 45.6657098246797, 
+                                   right = 20.0512969759635 , 
+                                   top = 51.9842907793309), 
+                          maptype = "outdoors",
+                          zoom = 6)
+
+
+register_stadiamaps("336698cf-6359-41b5-95fd-2434430c351d")
+
+ggmap(base_map)
+
+
+current <- stack("pred/curr_pred.tif")
