@@ -1,0 +1,67 @@
+## study area 
+
+
+
+##Quercus
+
+
+library(sf)
+library(mapview)
+library(flexsdm)
+library(leaflet)
+library(raster)
+library(terra)
+
+
+### loading thinned df manually 
+
+
+studar <- calib_area(df_Quercus, x="decimalLongitude", y="decimalLatitude", method = c('bmcp', width=100000), 
+                     groups = NULL, crs ="+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0")
+
+
+mapview(studar)
+
+
+writeVector(studar, "study_areaQuercus.shp", overwrite=T)
+
+
+## Cerambyx cerdo
+
+studar_cc <- calib_area(cc_thin_thin1, x="decimalLongitude", y="decimalLatitude", method = c('bmcp', width=100000), 
+                     groups = NULL, crs ="+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0")
+
+
+mapview(studar_cc)
+
+
+### we can see that the occurrences of CC are further that Quercus and therefore the df_cc will be cropped to the studar
+
+
+xy <- cc_thin_thin1[,c(2,3)]
+
+CC_spat_df <- SpatialPointsDataFrame(coords = xy, data = cc_thin_thin1,
+                                     proj4string = CRS("+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0"))
+
+
+ext <- extent(5.119065, 20.0513, 45.66571, 51.98429)
+
+
+CC_sub <-  crop(vect(CC_spat_df), ext)
+
+
+mapview(CC_sub)
+
+writeVector(CC_sub, "CCinQuerc.shp", overwrite=T)
+
+### checking in Qgis and it needs some manual cleaning 
+
+
+cc_clean <- read_sf("CCinQuerc_clean.shp")
+
+cc_clean_df <- as.data.frame(cc_clean)
+
+cc_clean_df <- cc_clean_df[-c(4)]
+
+
+write.csv(cc_clean_df, "C_credo_tomodel.csv")
