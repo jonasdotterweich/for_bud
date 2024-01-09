@@ -1,0 +1,204 @@
+### trying to model Cerambyx cerdo
+
+library(dplyr)
+library(spThin)
+
+
+## importing the dataframes manually with rstudio import from files
+
+
+#selectiong only the ones with coordinates
+C_cerdo <- C_cerdo %>% distinct(decimalLongitude,decimalLatitude, .keep_all= TRUE)
+
+#selectiong only the ones with Cerambyx cerdo species name... as thinning 
+C_cerdo <- C_cerdo %>% filter(scientificName == "Cerambyx cerdo Linnaeus, 1758")
+
+
+#####preparing dataset C_cerdo for spThin
+
+C_cerdo_thin <- C_cerdo %>% dplyr::select(decimalLatitude, decimalLongitude, species)
+
+
+thin(
+  loc.data= C_cerdo_thin,
+  lat.col = "decimalLatitude",
+  long.col = "decimalLongitude",
+  spec.col = "species",
+  thin.par= 10,
+  reps= 5,
+  locs.thinned.list.return = FALSE,
+  write.files = TRUE,
+  max.files = 1,
+  out.dir= "occ_thin",
+  out.base = "cc_thin",
+  write.log.file = FALSE,
+  log.file = "spatial_thin_log_bv.txt",
+  verbose = TRUE
+)
+
+
+
+
+#### now the same for the quercus species
+
+
+
+#selectiong only the ones with coordinates
+Quercus <- Quercus %>% distinct(decimalLongitude,decimalLatitude, .keep_all= TRUE)
+
+
+## as there are multiple species in the dataset, no species selection will be made
+
+namesQ <- Quercus$species
+
+distinct_namesQ <- unique(namesQ)
+
+# resulting in 13 different quercus species
+## the values for species Name differ but this Is due to overlapping in different nomenlclature e.g. with Qrobur sp robur and Qrobur
+
+# however there are still some unspecified oaks in the dataset.. so filtering these too 
+
+Quercus <- Quercus %>% filter(!is.na(species))
+
+
+#####preparing dataset C_cerdo for spThin
+
+Quercus_thin <- Quercus %>% select(decimalLatitude, decimalLongitude, species)
+
+
+
+
+thin(
+  loc.data= Quercus_thin ,
+  lat.col = "decimalLatitude",
+  long.col = "decimalLongitude",
+  spec.col = "species",
+  thin.par= 5,
+  reps= 5,
+  locs.thinned.list.return = FALSE,
+  write.files = TRUE,
+  max.files = 1,
+  out.dir= "occ_thin",
+  out.base = "Querc_thin",
+  write.log.file = FALSE,
+  log.file = "spatial_thin_log_bv.txt",
+  verbose = TRUE
+)
+
+### checking if too many different species were lost by the thinning
+
+namesQ_thin <- Quercus_thin$species
+
+
+distinct_namesQ_thin <- unique(namesQ_thin)
+
+### only Quercus robur 
+
+### checking the overall amounts
+
+species_counts <- Quercus_thin %>% 
+  group_by(species) %>% 
+  summarise(count = n())
+
+
+
+### changed thin parameter to 500m 
+
+namesQ_thin3 <- Querc_thin_thin3$species
+
+
+distinct_namesQ_thin <- unique(namesQ_thin3)
+
+## quercus robur still dominant
+
+
+###########.  -----  dividing the dataframes.    ------####
+
+
+
+Q_robur_thin <- Quercus_thin  %>% filter(species == "Quercus robur")
+
+
+thin(
+  loc.data= Q_robur_thin,
+  lat.col = "decimalLatitude",
+  long.col = "decimalLongitude",
+  spec.col = "species",
+  thin.par= 5,
+  reps= 5,
+  locs.thinned.list.return = FALSE,
+  write.files = TRUE,
+  max.files = 1,
+  out.dir= "occ_thin",
+  out.base = "Q_rob",
+  write.log.file = FALSE,
+  log.file = "spatial_thin_log_bv.txt",
+  verbose = TRUE
+)
+
+
+
+### then taking the original thin dataframe and and omitting Qrobur
+
+Q_robur_excluded <- Quercus_thin %>% filter(species != "Quercus robur")
+
+
+species_counts_Qexcl <- Q_robur_excluded %>% 
+  group_by(species) %>% 
+  summarise(count = n())
+
+
+
+
+
+thin(
+  loc.data= Q_robur_excluded,
+  lat.col = "decimalLatitude",
+  long.col = "decimalLongitude",
+  spec.col = "species",
+  thin.par= 5,
+  reps= 5,
+  locs.thinned.list.return = FALSE,
+  write.files = TRUE,
+  max.files = 1,
+  out.dir= "occ_thin",
+  out.base = "Q_rob_excluded",
+  write.log.file = FALSE,
+  log.file = "spatial_thin_log_bv.txt",
+  verbose = TRUE
+)
+
+
+species_counts_Qexcl <- Q_rob_excluded_thin1_new %>% 
+  group_by(species) %>% 
+  summarise(count = n())
+
+
+
+
+
+
+### combining now the two dataframes
+
+querc_thinned_new <- rbind(Q_rob_thin1_new, Q_rob_excluded_thin1)
+
+
+species_counts_bind <- querc_thinned_new %>% 
+  group_by(species) %>% 
+  summarise(count = n())
+
+
+
+## checking the names now 
+
+
+namesQ_new <- querc_thinned_new$species
+
+
+distinct_namesquerc_thinned <- unique(namesQ_new)
+
+
+### okay now using the two species names
+
+write.csv(querc_thinned_new, "df_Quercus.csv")
+
