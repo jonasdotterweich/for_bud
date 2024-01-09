@@ -1,0 +1,121 @@
+### environmentl data 
+
+### using worldclim 
+
+library(raster)
+library(sf)
+library(dismo)
+library(rgdal)
+library(gdalUtils)
+
+
+# import Bio & envirem variables
+
+setwd("~/Documents/R Project Bank Vole")
+
+
+BIO1 <- raster("Raster/raw/BIO/BIO1.tif")
+BIO2<-raster("Raster/raw/BIO/BIO2.tif")
+BIO3<-raster("Raster/raw/BIO/BIO3.tif")
+BIO4<-raster("Raster/raw/BIO/BIO4.tif")
+BIO5<-raster("Raster/raw/BIO/BIO5.tif")
+BIO6<-raster("Raster/raw/BIO/BIO6.tif")
+BIO7<-raster("Raster/raw/BIO/BIO7.tif")
+BIO8<-raster("Raster/raw/BIO/BIO8.tif")
+BIO9<-raster("Raster/raw/BIO/BIO9.tif")
+BIO10<-raster("Raster/raw/BIO/BIO10.tif")
+BIO11<-raster("Raster/raw/BIO/BIO11.tif")
+BIO12<-raster("Raster/raw/BIO/BIO12.tif")
+BIO13<-raster("Raster/raw/BIO/BIO13.tif")
+BIO14<-raster("Raster/raw/BIO/BIO14.tif")
+BIO15<-raster("Raster/raw/BIO/BIO15.tif")
+BIO16<-raster("Raster/raw/BIO/BIO16.tif")
+BIO17<-raster("Raster/raw/BIO/BIO17.tif")
+BIO18<-raster("Raster/raw/BIO/BIO18.tif")
+BIO19<-raster("Raster/raw/BIO/BIO19.tif")
+
+
+bioc <- brick(BIO1, BIO2, BIO3, BIO4, BIO5, BIO6, BIO7, BIO8, BIO9, BIO10, BIO11, 
+              BIO12, BIO13, BIO14, BIO15, BIO16, BIO17, BIO18, BIO19)
+
+### -- Envirem -- ###
+
+ER1 <- raster("Raster/raw/ENVIREM/ER_annualPET.tif")
+ER2 <- raster("Raster/raw/ENVIREM/ER_aridityIndexThornthwaite.tif")
+ER3 <- raster("Raster/raw/ENVIREM/ER_climaticMoistureIndex.tif")
+ER4 <- raster("Raster/raw/ENVIREM/ER_continentality.tif")
+ER5 <- raster("Raster/raw/ENVIREM/ER_embergerQ.tif")
+ER6 <- raster("Raster/raw/ENVIREM/ER_growingDegDays0.tif")
+ER7 <- raster("Raster/raw/ENVIREM/ER_growingDegDays5.tif")
+ER8 <- raster("Raster/raw/ENVIREM/ER_maxTempColdest.tif")
+ER9 <- raster("Raster/raw/ENVIREM/ER_minTempWarmest.tif")
+ER10 <- raster("Raster/raw/ENVIREM/ER_monthCountByTemp10.tif")
+ER11 <- raster("Raster/raw/ENVIREM/ER_PETColdestQuarter.tif")
+ER12 <- raster("Raster/raw/ENVIREM/ER_PETDriestQuarter.tif")
+ER13 <- raster("Raster/raw/ENVIREM/ER_PETseasonality.tif")
+ER14 <- raster("Raster/raw/ENVIREM/ER_PETWarmestQuarter.tif")
+ER15 <- raster("Raster/raw/ENVIREM/ER_PETWettestQuarter.tif")
+ER16 <- raster("Raster/raw/ENVIREM/ER_thermicityIndex.tif")
+ER17 <- raster("Raster/raw/ENVIREM/ER_tri.tif")
+
+envirem <- brick(ER1, ER2, ER3, ER4, ER5, ER6, ER7, ER8, ER9, ER10, ER11, ER12, ER13,
+                 ER14, ER15, ER16, ER17)
+
+
+### cropping and masking of the stacks
+
+#importing the study area
+
+setwd("~/for bud ")
+ 
+study_area <- read_sf("study_areaQuercus.shp")
+
+
+##cropping masking bio
+
+
+bio_cr <- crop(bioc, study_area)
+
+bio_ma <- mask(bio_cr, study_area)
+
+
+##cropping masking envirem
+
+envirem_cr <- crop(envirem, study_area)
+
+envirem_ma <- mask(envirem_cr, study_area)
+
+
+#making a stack
+
+bio_vars_curr <- stack(bio_ma, envirem_ma)
+
+writeRaster(bio_vars_curr, "biovars_curr.tif", format="GTiff", overwrite=TRUE)
+
+#writing another raster for the names
+
+writeRaster(bio_vars_curr, "biovars_curr_names.grd", overwrite=TRUE)
+
+###### VIF ######
+
+
+library(usdm)
+
+
+bivars_df <- as.data.frame(bio_vars_curr)
+
+vif_bivars <- vifstep(bivars_df, th = 10)
+
+
+
+bivars_to_keep <- exclude(bio_vars_curr, vif_bivars)
+
+bivars_to_keep <- crop(bivars_to_keep, study_area)
+bivars_to_keep <- mask(bivars_to_keep, study_area)
+
+
+#saving 
+
+writeRaster(bivars_to_keep , "biovars_tomodel.tif", format="GTiff", overwrite=TRUE)
+
+writeRaster(bivars_to_keep , "biovars_tomodel_names.grd", overwrite=TRUE)
