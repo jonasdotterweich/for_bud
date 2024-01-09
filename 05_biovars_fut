@@ -1,0 +1,127 @@
+### future bivars
+
+library(envirem)
+library(raster)
+library(rgdal)
+library(maps)
+library(sf)
+
+
+setwd("/Volumes/JD's SSD/Global_Circulation_Models/Worldclim_GCM_ssp585")
+
+
+MIROCtmin <- "MIROC6/wc2.1_30s_tmin_MIROC6_ssp585_2041-2060.tif"
+MIROCtmax <- "MIROC6/wc2.1_30s_tmax_MIROC6_ssp585_2041-2060.tif"
+MIROCprec <- "MIROC6/wc2.1_30s_prec_MIROC6_ssp585_2041-2060.tif"
+MIROCbioc <- "MIROC6/wc2.1_30s_bioc_MIROC6_ssp585_2041-2060.tif"
+
+tmin <-brick(MIROCtmin)
+tmax <- brick(MIROCtmax)
+prec <- brick(MIROCprec)
+bioc <- brick(MIROCbioc)
+
+
+tmin <- crop(tmin, studar)
+tmax <- crop(tmax, studar)
+prec <- crop(prec, studar)
+bioc <- crop(bioc, studar)
+
+tmin <- mask(tmin, studar)
+tmax <- mask(tmax, studar)
+prec <- mask(prec, studar)
+bioc <- mask(bioc, studar)
+
+
+tmean <- (tmin + tmax) / 2
+
+trange <- abs(tmax - tmin) 
+
+tmeanforsolrad <- rast(tmean$layer.1)
+
+solrad <- ETsolradRasters(tmeanforsolrad, year = 100)
+
+tmean_rast <- rast(tmean)
+
+trange_rast <- rast(trange)
+
+potevap <- monthlyPET(tmean_rast, solrad, trange_rast, tempScale = 1)
+
+
+names(tmin)
+names(tmax)
+names(tmean)
+names(prec)
+names(solrad)
+
+assignNames(tmin = "wc2.1_30s_tmin_##",
+            tmax = "wc2.1_30s_tmax_##",
+            tmean = "layer.##",
+            precip= "wc2.1_30s_prec_##",
+            solrad = "et_solrad_##"
+) 
+
+
+worldclimstack <- stack(tmin, tmax, prec)
+
+worldclimstack_rast <- rast(worldclimstack)
+
+verifyRasterNames(worldclimstack_rast, solrad)
+
+all <- generateEnvirem(worldclimstack_rast, solrad, var = "all")
+
+names(bivarnames)
+
+BIO3 <- bioc$wc2_3           
+BIO4 <- bioc$wc2_7                    
+BIO15 <- bioc$wc2_15               
+BIO19  <- bioc$wc2_19
+
+biobrick <- brick(BIO3, BIO4, BIO15, BIO19)
+
+biobrick <- rast(biobrick)
+
+ext(biobrick) <- ext(bivars_curr_rast)
+
+#getting er tri
+
+bivars_curr_rast <- rast(bivar_curr)
+
+ER_tri <- bivars_curr_rast$ER_tri
+
+ER_tri <- resample(ER_tri, ER_aridityIndexThornthwaite)
+
+
+ER_aridityIndexThornthwaite <- all$aridityIndexThornthwaite
+ER_growingDegDays5  <- all$growingDegDays5
+
+ER_monthCountByTemp10 <- all$monthCountByTemp10
+ER_PETColdestQuarter <- all$PETColdestQuarter
+
+ER_PETDriestQuarter  <- all$PETDriestQuarter
+ER_PETWettestQuarter  <- all$PETWettestQuarter
+
+ext(ER_aridityIndexThornthwaite) <-  ext(bivars_curr_rast)
+ext(ER_growingDegDays5) <- ext(bivars_curr_rast)
+
+ext(ER_monthCountByTemp10) <- ext(bivars_curr_rast)
+ext(ER_PETColdestQuarter) <- ext(bivars_curr_rast)
+
+ext(ER_PETDriestQuarter) <- ext(bivars_curr_rast)
+ext(ER_PETWettestQuarter) <- ext(bivars_curr_rast)
+
+ER_tri <- resample(ER_tri, ER_aridityIndexThornthwaite)
+
+ERbrick <- stack(c(ER_aridityIndexThornthwaite, ER_growingDegDays5, ER_monthCountByTemp10, ER_PETColdestQuarter,
+                 ER_PETDriestQuarter, ER_PETWettestQuarter, ER_tri))
+
+ERbrick <- rast(ERbrick)
+
+bivars_fut <- stack(c(biobrick, ERbrick))
+
+
+names(bivars_fut) <- names(bivarnames)
+
+
+writeRaster(bivars_fut, "biovars_fut.tif", format= "GTiff", overwrite=T)
+
+writeRaster(bivars_fut, "biovars_fut_fornames.grd", overwrite=T)
