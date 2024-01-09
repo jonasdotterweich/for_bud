@@ -1,0 +1,122 @@
+### _pseudoabsences for the datasets
+
+
+library(flexsdm)
+library(raster)
+library(terra)
+library(sf)
+library(dplyr)
+
+
+
+#loading occurrences  CC
+
+C_credo_tomodel <- read_csv("C_credo_tomodel.csv")
+
+CC_lonlat <- dplyr::select(C_credo_tomodel, decimalLon, decimalLat)
+
+
+#loading occurrences  Quercus
+
+df_Quercus <- read_csv("df_Quercus.csv")
+
+Querc_lonlat <- dplyr::select(df_Quercus, decimalLongitude, decimalLatitude)
+
+
+
+#loading biovariables
+
+biovars <- brick("biovars_tomodel.tif")
+
+
+#assigning the names
+bivarnames <- brick("biovars_tomodel_names.grd")
+
+names(biovars) <- names(bivarnames)
+
+
+#creating a spatial raster
+
+bivars_rast <- rast(biovars)
+
+
+
+### pseudoabsences CC
+
+BIO3 <- bivars_rast$BIO3
+
+pseudo_abs_env_CC <- sample_pseudoabs(
+  data= C_credo_tomodel, 
+  x= "decimalLon",
+  y= "decimalLat",
+  n= nrow(C_credo_tomodel),
+  method= c("env_const", env= bivars_rast),
+  rlayer= BIO3,
+  maskval= NULL,
+  sp_name= "Cerambyx cerdo")
+
+
+
+### pseudoabsences Quercus
+
+pseudo_abs_env_Querc <- sample_pseudoabs(
+  data= df_Quercus, 
+  x= "decimalLongitude",
+  y= "decimalLatitude",
+  n= nrow(df_Quercus),
+  method= c("env_const", env= bivars_rast),
+  rlayer= BIO3,
+  maskval= NULL,
+  sp_name= "Quercus L.")
+
+
+
+
+### combining presences & abcences 
+
+##for CC
+
+CC_lonlat$pr_ab <- rep(1, nrow(CC_lonlat))
+
+pseudoabsenv_CC_wo_spname <- dplyr::select(pseudo_abs_env_CC, decimalLon, decimalLat, pr_ab)
+
+df_CC <- rbind(CC_lonlat, pseudoabsenv_CC_wo_spname)
+
+write.csv(df_CC, "Data/df_CC.csv", row.names = FALSE)
+
+
+
+##for Quercus 
+
+Querc_lonlat$pr_ab <- rep(1, nrow(Querc_lonlat))
+
+pseudoabsenv_Querc_wo_spname <- dplyr::select(pseudo_abs_env_Querc, decimalLongitude, decimalLatitude, pr_ab)
+
+df_Querc <- rbind(Querc_lonlat, pseudoabsenv_Querc_wo_spname)
+
+write.csv(df_Querc, "Data/df_Querc.csv", row.names = FALSE)
+
+
+
+#assigning to all the pres&abs the biovariables at the coordinate for CC
+
+var_CC <- extract(biovars, as.matrix(df_CC[,1:2]))
+
+
+#joining the df and the var together
+
+df_var_CC <- cbind(df_CC, var_CC)
+
+write.csv(df_var_CC, "Data/df_CC+bivars.csv", row.names = FALSE)
+
+
+
+#assigning to all the pres&abs the biovariables at the coordinate for Quercus
+
+var_Querc <- extract(biovars, as.matrix(df_Querc[,1:2]))
+
+#joining the df and the var together
+
+df_var_Querc <- cbind(df_Querc, var_Querc)
+
+write.csv(df_var_Querc, "Data/df_Querc+bivars.csv", row.names = FALSE)
