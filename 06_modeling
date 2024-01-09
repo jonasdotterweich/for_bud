@@ -216,7 +216,7 @@ base_map <- get_stadiamap(bbox = c(left = 5.11906466498299,
                           zoom = 6)
 
 
-register_stadiamaps("336698cf-6359-41b5-95fd-2434430c351d")
+register_stadiamaps("API-Key")
 
 ggmap(base_map)
 
